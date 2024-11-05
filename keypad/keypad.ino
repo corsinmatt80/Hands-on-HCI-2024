@@ -66,10 +66,12 @@ void loop() {
   analogWrite(LEDBLAU, 10);
  }
  //GELB STATUS: AN UND ANGEFANGEN CODE EINZUGEBEN
- if(currentCodeSize >= 1 && currentCodeSize >= 4){
+ if(currentCodeSize >= 1 && currentCodeSize < 4){
   analogWrite(LEDBLAU, 10);
   analogWrite(LEDGRUEN, 10);
  }
+
+
 
 
  char key = myKeypad.getKey();
@@ -78,10 +80,6 @@ void loop() {
  //BEIM SCHLIESSEN CODE ZURÜCKSETZEN SONST CHARAKTER ZU CODE HINZUFÜGEN
  if (key == reset) {
   moveGate(SERVO_CLOSED);
-  for(int i = 0; i < 4; i++){
-    enteredCode[i] = -1;
-  }
-  currentCodeSize = 0;
   return;
  }else{
   tone(buzzerPin, 600, 50);   
@@ -98,8 +96,14 @@ void loop() {
   Serial.println(enteredCode);
  }
 
+
+
+
+
+
+
  //WENN CODE RICHTIG IST, GRÜN LEUCHTEN UND TRESOR ÖFFNEN UND CODESIZE ZURÜCKSETZEN
- if (strcmp(enteredCode, code) == 0) {
+if (strcmp(enteredCode, code) == 0) {
   analogWrite(LEDGRUEN, LOW);
   oberstring = "CHUCHICHAESTLI";
   unterstring = "OEFFNET!";
@@ -109,6 +113,7 @@ void loop() {
   tone(buzzerPin, 700, 150);      
   delay(200);                    
   noTone(buzzerPin);              
+
   lcd.clear();
   for(int i = 0; i < oberstring.length(); i++){
     lcd.setCursor(0, 0);
@@ -120,21 +125,23 @@ void loop() {
     lcd.print(unterstring.substring(0,i+1));
     delay(200);
   }
-  for(int i = 0; i < 4; i++){
-    enteredCode[i] = -1;
-  }
-  currentCodeSize = 0;
-  lcd.setCursor(0,0);
-  lcd.setCursor(0,0);
+
+  // Reset für das Display erst nach Schließen des Tresors
   moveGate(SERVO_OPEN);
-  currentCodeSize = 0;
   while(myKeypad.getKey() != '#'){
     delay(200);
   }
+
+  // Nach dem Schließen zurück zur Eingabeaufforderung
   lcd.clear();
   lcd.setCursor(0,0);
   lcd.print("Enter Code!");
- }
+  currentCodeSize = 0;
+}
+
+
+
+
 
 
 
@@ -163,11 +170,12 @@ void loop() {
   for(int i = 0; i < 4; i++){
     enteredCode[i] = -1;
   }
-  while(myKeypad.getKey() != '#')
-   delay(200);
+  while(myKeypad.getKey() != '#'){
+    delay(200);
+  }
+  currentCodeSize = 0;
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("Enter Code!");
  }
- currentCodeSize = 0;
- lcd.clear();
- lcd.setCursor(0,0);
- lcd.print("Enter Code!");
 }
