@@ -1,12 +1,18 @@
 #include <Servo.h>
 #include <Key.h>
 #include <Keypad.h>
+#include <LiquidCrystal.h>
 
 #define PIN_SERVO 10
-#define SERVO_OPEN 0
-#define SERVO_CLOSED 90
+#define SERVO_OPEN 70
+#define SERVO_CLOSED 150
 Servo myServo;
-int lastPos;
+char reset = '#';
+char enteredCode[5];
+int currentCodeSize = 0;
+
+const int rs = 12, en = 11, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
+LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 
 #define KEYPAD_ROWS 4
 #define KEYPAD_COLS 4
@@ -20,53 +26,63 @@ char keymap[KEYPAD_ROWS][KEYPAD_COLS] = {
 };
 Keypad myKeypad = Keypad(makeKeymap(keymap), rowPins, colPins, KEYPAD_ROWS, KEYPAD_COLS);
 
-char code[] = { '1', '*', '3', '5' }; // gewählter code "1*35"
-int codeLen = 4; // länge des codes
-int codePos = 0; // anzahl angegebene richtige stellen im code
+char code[] = { '1', '*', '3', '5', '\0' };  
 
 void moveGate(int pos) {
- // verbinden mit der servo
- myServo.attach(PIN_SERVO); // servo zu position bewegen
+ myServo.attach(PIN_SERVO);
  myServo.write(pos);
- // speichere die position
- lastPos = pos;
- // warte 500ms
  delay(500);
- // löse verbindung auf
  myServo.detach();
 }
+
 void setup() {
- // initialisiere das gate als "zu"
  moveGate(SERVO_CLOSED);
  Serial.begin(9600);
+ lcd.begin(16,2);
+ lcd.print("Enter Code!");
 }
+
 void loop() {
- // letzter gespresster charakter speichern
  char key = myKeypad.getKey();
- 
- // mach nichts wenn kein charakter gedrückt wird
  if (key == NO_KEY) return;
- Serial.print(key);
- // Close lock if it is open and key was pressed
- if (lastPos == SERVO_OPEN) {
+ Serial.print("Current key: ");
+ Serial.println(key);
+ if (key == reset) {
   moveGate(SERVO_CLOSED);
+  for(int i = 0; i < 4; i++){
+    enteredCode[i] = -1;
+  }
+  currentCodeSize = 0;
   return;
+ }else{
+  enteredCode[currentCodeSize] = key;
+  if(currentCodeSize<4){
+    Serial.print("Current size: ");
+    Serial.println(currentCodeSize);
+    currentCodeSize++;
+  }
+  enteredCode[currentCodeSize] = '\0'; 
+  Serial.print("Current Code Entered: ");
+  Serial.println(enteredCode);
  }
- // Process key press
- if (key == code[codePos]) {
-  // wenn der teil vom schlüssel korrekt gedrückt wird, schiebe position eines hoch
-  codePos++;
- }
- else {
-  // falscher charakter : wieder bei 0 starten
-  codePos = 0;
-  // todo: FEHLERMELDUNG und ggf. LED
- }
- // richtiger Code eingegeben
- if (codePos == codeLen) {
-  // Gate öffnen
+
+ if (strcmp(enteredCode, code) == 0) {
+  lcd.clear();
+  lcd.print("Success");
+  lcd.setCursor(0,1);
+  lcd.print("Tresor opens!");
+  lcd.setCursor(0,0);
   moveGate(SERVO_OPEN);
-  // cursor wieder zurück
-  codePos = 0;
+  currentCodeSize = 0;
+ }
+ if(currentCodeSize == 4 && strcmp(enteredCode, code) != 0){
+  lcd.clear();
+  lcd.print("Declined!");
+  lcd.setCursor(0,1);
+  lcd.print("Stays shut!");
+  lcd.setCursor(0,0);
+  for(int i = 0; i < 4; i++){
+    enteredCode[i] = -1;
+  }
  }
 }
