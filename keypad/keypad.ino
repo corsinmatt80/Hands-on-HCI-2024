@@ -4,6 +4,14 @@
 #include <Keypad.h>
 #include <LiquidCrystal.h>
 
+//DIEBSTAHLSCHUTZ
+#define PIN_TRIGGER 37
+#define PIN_ECHO 36
+const int SENSOR_MAX_RANGE = 300; // in cm
+unsigned long duration;
+unsigned int distance;
+
+
 
 //PIANO TÖNE
 #define TONE_A 220
@@ -101,9 +109,14 @@ void setup() {
  lcd.begin(16,2);
  lcd.print("Enter Code!");
  Serial.println(codeSize);
+ pinMode(PIN_TRIGGER, OUTPUT);
+ pinMode(PIN_ECHO, INPUT);
 }
 
 void loop() {
+
+ alarmDetection();
+
 
 
  //VIOLETT STATUS: AN ABER KEIN CODE EINGEGEBEN
@@ -186,19 +199,20 @@ void loop() {
  if(currentCodeSize == 4){
   for (int i = 0; i < codeSize; i++){
     if(compareCharArrays(enteredCode, codeArray[i].values)){
+        moveGate(SERVO_OPEN);
         correctPin = true;
         Serial.print("Found code: ");
         Serial.println(codeArray[i].values);
         addElement(codeArray[i].key);
         access++;
         analogWrite(LEDGRUEN, LOW);
-        oberstring = "CHUCHICHAESTLI";
-        unterstring = "OEFFNET!";
+        oberstring = "Hallo";
+        unterstring = codeArray[i].key;
         analogWrite(LEDGRUEN, 100);
         tone(buzzerPin, 500, 150);  
-        delay(200);                     
+        delay(100);                     
         tone(buzzerPin, 700, 150);      
-        delay(200);                    
+        delay(100);                    
         noTone(buzzerPin);              
 
         lcd.clear();
@@ -206,19 +220,21 @@ void loop() {
           lcd.setCursor(0, 0);
           lcd.print(oberstring.substring(0,i+1));
           delay(200);
+          alarmDetection();
         }
         for(int i = 0; i < unterstring.length(); i++){
           lcd.setCursor(0, 1);
           lcd.print(unterstring.substring(0,i+1));
           delay(200);
+          alarmDetection();
         }
         for(int i = 0; i < 4; i++){
           enteredCode[i] = -1;
         }
         // Reset für das Display erst nach Schließen des Tresors
-        moveGate(SERVO_OPEN);
         while(myKeypad.getKey() != reset){
           delay(200);
+          alarmDetection();
         }
         Serial.print(enteredCode);
         Serial.println(" - Code (hoffentlich reset)");
@@ -236,10 +252,6 @@ void loop() {
     //WENN CODE FALSCH IST, ROT LEUCHTEN UND TRESOR ZU LASSEN. EVENFALLS CODE RESETTEN
     if(!correctPin){
       numberMistakes++;
-      if(numberMistakes == 3){
-        NGU();
-        numberMistakes = 0;
-      }
       analogWrite(LEDROT,LOW);
       for (int i = 0 ; i<3; i++){
         tone(buzzerPin, 300, 150);
@@ -248,24 +260,33 @@ void loop() {
       analogWrite(LEDROT, 100);
       lcd.clear();
       oberstring = "CHUCHICHAESTLI";
-      unterstring = "BLIBE ZUE!";
+      unterstring = "BLIBT ZUE!";
       for(int i = 0; i < oberstring.length(); i++){
         lcd.setCursor(0, 0);
         lcd.print(oberstring.substring(0,i+1));
         delay(200);
+        alarmDetection();
       }
       for(int i = 0; i < unterstring.length(); i++){
         lcd.setCursor(0, 1);
         lcd.print(unterstring.substring(0,i+1));
         delay(200);
+        alarmDetection();
       }
       lcd.setCursor(0,0);
       for(int i = 0; i < 4; i++){
         enteredCode[i] = -1;
       }
-      while(myKeypad.getKey() != reset){
-        delay(200);
+      if(numberMistakes == 3){
+        NGU();
+        numberMistakes = 0;
       }
+      
+      for(int i = 0; i<10;i++){
+        delay(400);
+        alarmDetection();
+      }
+
       currentCodeSize = 0;
       lcd.clear();
       lcd.setCursor(0,0);
@@ -286,7 +307,7 @@ bool compareCharArrays(char* enteredCode, char* validCode){
 
 void playNote(int frequency, int duration) {
   tone(buzzerPin, frequency, duration);
-  delay(100); // kurze Pause zwischen den Noten
+  delay(duration*0.8); // kurze Pause zwischen den Noten
   noTone(buzzerPin);
 }
 
@@ -325,5 +346,21 @@ void NGU(){
   playNote(TONE_A, 300);  // Say
   playNote(TONE_EST, 1052);  // Goodbye
   playNote(TONE_DST, 2105);  // Die
+}
+
+void alarmDetection(){
+  digitalWrite(PIN_TRIGGER, LOW);
+  delayMicroseconds(2);
+
+  digitalWrite(PIN_TRIGGER, HIGH);
+  delayMicroseconds(10);
+
+  duration = pulseIn(PIN_ECHO, HIGH);
+  distance = duration/58;
+
+  if (distance > SENSOR_MAX_RANGE || distance <= 0){
+  } else {
+    playNote(TONE_FST, 789);
+  }
 }
 
