@@ -5,6 +5,19 @@
 #include <LiquidCrystal.h>
 
 
+//PIANO TÖNE
+#define TONE_A 220
+#define TONE_H 246
+#define TONE_DST 293
+#define TONE_AST 440
+#define TONE_CST 277
+#define TONE_EST 329
+#define TONE_FST 369
+#define TONE_A 220
+#define TONE_A 220
+
+
+
 //BUZZERPIN:
 int buzzerPin = 6;
 
@@ -14,10 +27,13 @@ int buzzerPin = 6;
 #define SERVO_CLOSED 150
 Servo myServo;
 
+//
+int numberMistakes = 0;
+
 //CODE PRESETS:
 #define KEYPAD_ROWS 4
 #define KEYPAD_COLS 4
-char reset = '#';
+char reset = '*';
 char enteredCode[5];
 int currentCodeSize = 0;
 byte rowPins[KEYPAD_ROWS] = {29, 28, 27, 26};
@@ -55,7 +71,7 @@ void addElement(String element){
   entryArray = newEntryArray;
   arraySize++;
 }
-
+bool correctPin = false;
 
 //LEDPORTS:
 int LEDROT = 7;
@@ -93,7 +109,6 @@ void loop() {
  //VIOLETT STATUS: AN ABER KEIN CODE EINGEGEBEN
  if(currentCodeSize == 0){
   analogWrite(LEDROT, 10);
-  analogWrite(LEDBLAU, 10);
  }
  //GELB STATUS: AN UND ANGEFANGEN CODE EINZUGEBEN
  if(currentCodeSize >= 1 && currentCodeSize < 4){
@@ -113,11 +128,17 @@ void loop() {
   moveGate(SERVO_CLOSED);
   return;
  }else if(key == 'A' && access > 0){
+  tone(buzzerPin, 600, 50);   
+  delay(100);                
+  noTone(buzzerPin); 
   lcd.clear();
   lcd.setCursor(0,0);
   lcd.print(entryArray[index]);
   while (myKeypad.getKey() != '#'){
     if(myKeypad.getKey() == 'C'){
+      tone(buzzerPin, 600, 50);   
+      delay(100);                
+      noTone(buzzerPin); 
      if(index < access - 1){
       Serial.println("DOWN");
       index++;
@@ -126,6 +147,9 @@ void loop() {
       lcd.print(entryArray[index]);
      }
      }else if (myKeypad.getKey() == 'B'){
+       tone(buzzerPin, 600, 50);   
+       delay(100);                
+       noTone(buzzerPin); 
        if(index > 0){
          index--;
          Serial.println("UP");
@@ -135,6 +159,9 @@ void loop() {
        }
      }
   }
+   tone(buzzerPin, 600, 50);   
+   delay(100);                
+   noTone(buzzerPin); 
    lcd.clear();
    lcd.setCursor(0,0);
    lcd.print("Enter Code!");
@@ -157,9 +184,9 @@ void loop() {
 
 
  if(currentCodeSize == 4){
-  Serial.print("in here");
   for (int i = 0; i < codeSize; i++){
     if(compareCharArrays(enteredCode, codeArray[i].values)){
+        correctPin = true;
         Serial.print("Found code: ");
         Serial.println(codeArray[i].values);
         addElement(codeArray[i].key);
@@ -190,19 +217,29 @@ void loop() {
         }
         // Reset für das Display erst nach Schließen des Tresors
         moveGate(SERVO_OPEN);
-        while(myKeypad.getKey() != '#'){
+        while(myKeypad.getKey() != reset){
           delay(200);
         }
-
+        Serial.print(enteredCode);
+        Serial.println(" - Code (hoffentlich reset)");
         // Nach dem Schließen zurück zur Eingabeaufforderung
+        moveGate(SERVO_CLOSED);
         lcd.clear();
         lcd.setCursor(0,0);
         lcd.print("Enter Code!");
         currentCodeSize = 0;
+        analogWrite(LEDBLAU, LOW);
+        analogWrite(LEDGRUEN, LOW);
+        analogWrite(LEDROT, 10);
         }
-    } 
+    }
     //WENN CODE FALSCH IST, ROT LEUCHTEN UND TRESOR ZU LASSEN. EVENFALLS CODE RESETTEN
-    if(compareCharArrays(enteredCode, code)){
+    if(!correctPin){
+      numberMistakes++;
+      if(numberMistakes == 3){
+        NGU();
+        numberMistakes = 0;
+      }
       analogWrite(LEDROT,LOW);
       for (int i = 0 ; i<3; i++){
         tone(buzzerPin, 300, 150);
@@ -226,7 +263,7 @@ void loop() {
       for(int i = 0; i < 4; i++){
         enteredCode[i] = -1;
       }
-      while(myKeypad.getKey() != '#'){
+      while(myKeypad.getKey() != reset){
         delay(200);
       }
       currentCodeSize = 0;
@@ -234,6 +271,7 @@ void loop() {
       lcd.setCursor(0,0);
       lcd.print("Enter Code!");
     }
+  correctPin = false;
   }
 }
 
@@ -244,5 +282,48 @@ bool compareCharArrays(char* enteredCode, char* validCode){
      } 
   }
   return true;  
+}
+
+void playNote(int frequency, int duration) {
+  tone(buzzerPin, frequency, duration);
+  delay(100); // kurze Pause zwischen den Noten
+  noTone(buzzerPin);
+}
+
+void NGU(){
+  playNote(TONE_A, 263);  // Never
+  playNote(TONE_H, 263);  // Gonna
+  playNote(TONE_DST,263);  // Give
+  playNote(TONE_H, 263);  // You
+  playNote(TONE_FST, 789);  // Up
+  playNote(TONE_FST, 789);  // Up
+
+  playNote(TONE_EST, 1578);  // Never
+  playNote(TONE_A, 263);  // Never
+  playNote(TONE_H, 263);  // Gonna
+  playNote(TONE_DST,263);  // Give
+  playNote(TONE_H, 263);  // You
+
+  playNote(TONE_EST, 789);  // Never
+  playNote(TONE_EST, 789);  // Gonna
+  playNote(TONE_DST, 394);  // Run
+  playNote(TONE_CST, 263);  // Around
+  playNote(TONE_H, 600);  // And
+
+  playNote(TONE_A, 263);  // Never
+  playNote(TONE_H, 263);  // Gonna
+  playNote(TONE_DST,263);  // Give
+  playNote(TONE_H, 263);  // You
+
+  playNote(TONE_DST, 1052);  // Gonna
+  playNote(TONE_EST, 526);  // Make
+  playNote(TONE_CST, 263);  // You
+  playNote(TONE_H, 600);  // Cry
+
+  playNote(TONE_A, 600);  // Never
+  playNote(TONE_A, 300);  // Gonna
+  playNote(TONE_A, 300);  // Say
+  playNote(TONE_EST, 1052);  // Goodbye
+  playNote(TONE_DST, 2105);  // Die
 }
 
