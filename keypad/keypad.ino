@@ -11,6 +11,9 @@ const int SENSOR_MAX_RANGE = 300; // in cm
 unsigned long duration;
 unsigned int distance;
 
+// Configuration
+bool isAlarmActivated = true; // Set to false to disable alarm trigger
+int alarmTriggerThreshold = 6; // Change accepted distance here
 
 
 //PIANO TÖNE
@@ -79,7 +82,6 @@ void addElement(String element){
   entryArray = newEntryArray;
   arraySize++;
 }
-bool correctPin = false;
 
 //LEDPORTS:
 int LEDROT = 7;
@@ -92,6 +94,10 @@ LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 String oberstring;
 String unterstring;
 
+bool menuOpen = false;
+bool boxOpen = false;
+int menuIndex = 0;
+
 //POS = ANGLE OF TURNING
 void moveGate(int pos) {
  myServo.attach(PIN_SERVO);
@@ -101,200 +107,215 @@ void moveGate(int pos) {
 }
 
 void setup() {
+ lcd.begin(16,2);
+ lcd.print("Starting...");
  moveGate(SERVO_CLOSED);
  Serial.begin(9600);
  pinMode(LEDROT, OUTPUT);
  pinMode(LEDBLAU, OUTPUT);
  pinMode(LEDGRUEN, OUTPUT);
- lcd.begin(16,2);
- lcd.print("Enter Code!");
  Serial.println(codeSize);
  pinMode(PIN_TRIGGER, OUTPUT);
  pinMode(PIN_ECHO, INPUT);
+ showLEDScreen();
 }
 
-void loop() {
+void showRGBLED(int red, int green, int blue) {
+  analogWrite(LEDROT, red);
+  analogWrite(LEDGRUEN, green);
+  analogWrite(LEDBLAU, blue);
+}
 
- 
+void checkRGBLED(){
+  if(currentCodeSize >= 1 && currentCodeSize < 4){
+    showRGBLED(0,10,10);
+  }
+  else if (currentCodeSize == 4 && boxOpen) {
+    showRGBLED(0,10,0);
+  }
+  else if (currentCodeSize == 4 && boxOpen) {
+    showRGBLED(10,0,0);
+  }
+  else {
+    showRGBLED(0,0,10);
+  }
+}
 
-
-
- //VIOLETT STATUS: AN ABER KEIN CODE EINGEGEBEN
- if(currentCodeSize == 0){
-  analogWrite(LEDROT, 10);
- }
- //GELB STATUS: AN UND ANGEFANGEN CODE EINZUGEBEN
- if(currentCodeSize >= 1 && currentCodeSize < 4){
-  analogWrite(LEDBLAU, 10);
-  analogWrite(LEDGRUEN, 10);
- }
-
-
-
-
- char key = myKeypad.getKey();
- if (key == NO_KEY) return;
- 
- //BEIM SCHLIESSEN CODE ZURÜCKSETZEN SONST CHARAKTER ZU CODE HINZUFÜGEN
- if (key == reset) {
-  Serial.println("CLOSE GATE");
+void closeBox() {
   moveGate(SERVO_CLOSED);
-  return;
- }else if(key == 'A' && access > 0){
+  boxOpen = false;
+}
+
+void resetCode(){
+  currentCodeSize = 0;
+  closeBox();
+  menuOpen = false;
+  showLEDScreen();
+}
+
+void buttonSound(){
   tone(buzzerPin, 600, 50);   
   delay(100);                
   noTone(buzzerPin); 
-  lcd.clear();
-  lcd.setCursor(0,0);
-  lcd.print(entryArray[index]);
-  while (myKeypad.getKey() != '#'){
-    if(myKeypad.getKey() == 'C'){
-      tone(buzzerPin, 600, 50);   
-      delay(100);                
-      noTone(buzzerPin); 
-     if(index < access - 1){
-      Serial.println("DOWN");
-      index++;
-      lcd.clear();
-      lcd.setCursor(0,0);
-      lcd.print(entryArray[index]);
-     }
-     }else if (myKeypad.getKey() == 'B'){
-       tone(buzzerPin, 600, 50);   
-       delay(100);                
-       noTone(buzzerPin); 
-       if(index > 0){
-         index--;
-         Serial.println("UP");
-         lcd.clear();
-         lcd.setCursor(0,0);
-         lcd.print(entryArray[index]);
-       }
-     }
-  }
-   tone(buzzerPin, 600, 50);   
-   delay(100);                
-   noTone(buzzerPin); 
-   lcd.clear();
-   lcd.setCursor(0,0);
-   lcd.print("Enter Code!");
- }else{
-  tone(buzzerPin, 600, 50);   
+}
+
+void wrongButtonSound(){
+  tone(buzzerPin, 300, 50);   
   delay(100);                
-  noTone(buzzerPin);          
+  noTone(buzzerPin); 
+}
+
+void showLEDScreen(){
+  lcd.clear();
+  if(menuOpen){
+      lcd.setCursor(0,0);
+      if(access == 0){
+        lcd.print("No access registered.");
+      } else {
+        lcd.print(entryArray[index]);
+      }
+  } else if(!boxOpen) {
+    lcd.setCursor(0,0);
+    lcd.print("Enter code:");
+    lcd.setCursor(0,1);
+    if(currentCodeSize == 1){
+      lcd.print("*");
+    } else if(currentCodeSize == 2){
+      lcd.print("**");
+    } else if(currentCodeSize == 3){
+      lcd.print("***");
+    } else if(currentCodeSize == 4){
+      lcd.print("****");
+    }
+  } else {
+    lcd.setCursor(0, 0);
+    lcd.print("Hello");
+
+    lcd.setCursor(0, 1);
+    lcd.print(entryArray[index]);
+  }
+}
+
+void loop() {
+  checkAlarm();
+  checkRGBLED();
+
+  char key = myKeypad.getKey();
+  if (key == NO_KEY) return;
+ 
+ buttonSound();
+ 
+ if (key == 'A') {
+  menuOpen = !menuOpen;
+  showLEDScreen();
+ } else if (key == 'B') {
+  if(menuOpen){
+    if(menuIndex == 0) {
+       wrongButtonSound(); 
+       Serial.println("Error: Menu end reached.");
+    } else {
+      menuIndex--;
+      showLEDScreen();
+    }
+  } else {
+    wrongButtonSound(); 
+    Serial.println("Error: Pressed B while menu was closed.");
+  }
+ } else if (key == 'C') {
+  if(menuOpen){
+    if(menuIndex +1 > access) {
+       wrongButtonSound(); 
+       Serial.println("Error: Menu end reached.");
+    } else {
+      menuIndex++;
+      showLEDScreen();
+    }
+  } else {
+    wrongButtonSound(); 
+    Serial.println("Error: Pressed C while menu was closed.");
+  }
+ } else if (key == 'D') {
+  wrongButtonSound(); 
+  Serial.println("Error: Letter D not supported. ");
+
+ } else if (key == '#') {
+  wrongButtonSound(); 
+  Serial.println("Error: Letter # not supported. ");
+ }
+  else if (key == '*') {
+  resetCode();
+ } else {          
   enteredCode[currentCodeSize] = key;
   if(currentCodeSize<4){
-    Serial.print("Current size: ");
-    Serial.println(currentCodeSize);
     currentCodeSize++;
-  }
-  enteredCode[currentCodeSize] = '\0'; 
+  } 
   Serial.print("Current Code Entered: ");
   Serial.println(enteredCode);
+  showLEDScreen();
+  if(currentCodeSize == 4){
+    checkCode();
+  }
  }
+}
 
-
-
-
- if(currentCodeSize == 4){
+void checkCode(){
+  bool correctPin = false;
   for (int i = 0; i < codeSize; i++){
     if(compareCharArrays(enteredCode, codeArray[i].values)){
         moveGate(SERVO_OPEN);
         correctPin = true;
-        Serial.print("Found code: ");
-        Serial.println(codeArray[i].values);
+        boxOpen = true;
+
         addElement(codeArray[i].key);
         access++;
-        analogWrite(LEDGRUEN, LOW);
-        oberstring = "Hallo";
-        unterstring = codeArray[i].key;
-        analogWrite(LEDGRUEN, 100);
+
+        showLEDScreen();
+
+        // Open sound
         tone(buzzerPin, 500, 150);  
         delay(100);                     
         tone(buzzerPin, 700, 150);      
         delay(100);                    
         noTone(buzzerPin);              
 
-        lcd.clear();
-        for(int i = 0; i < oberstring.length(); i++){
-          lcd.setCursor(0, 0);
-          lcd.print(oberstring.substring(0,i+1));
-          delay(200);
-          alarmDetection();
-        }
-        for(int i = 0; i < unterstring.length(); i++){
-          lcd.setCursor(0, 1);
-          lcd.print(unterstring.substring(0,i+1));
-          delay(200);
-          alarmDetection();
-        }
         for(int i = 0; i < 4; i++){
           enteredCode[i] = -1;
         }
-        // Reset für das Display erst nach Schließen des Tresors
-        while(myKeypad.getKey() != reset){
-          delay(200);
-          alarmDetection();
-        }
-        Serial.print(enteredCode);
-        Serial.println(" - Code (hoffentlich reset)");
-        // Nach dem Schließen zurück zur Eingabeaufforderung
-        moveGate(SERVO_CLOSED);
-        lcd.clear();
-        lcd.setCursor(0,0);
-        lcd.print("Enter Code!");
-        currentCodeSize = 0;
-        analogWrite(LEDBLAU, LOW);
-        analogWrite(LEDGRUEN, LOW);
-        analogWrite(LEDROT, 10);
-        }
+      }
     }
     //WENN CODE FALSCH IST, ROT LEUCHTEN UND TRESOR ZU LASSEN. EVENFALLS CODE RESETTEN
     if(!correctPin){
+      
       numberMistakes++;
-      analogWrite(LEDROT,LOW);
+      showRGBLED(10,0,0);
       for (int i = 0 ; i<3; i++){
         tone(buzzerPin, 300, 150);
         delay(200);
       }
-      analogWrite(LEDROT, 100);
+      
       lcd.clear();
-      oberstring = "CHUCHICHAESTLI";
-      unterstring = "BLIBT ZUE!";
-      for(int i = 0; i < oberstring.length(); i++){
-        lcd.setCursor(0, 0);
-        lcd.print(oberstring.substring(0,i+1));
-        delay(200);
-        alarmDetection();
-      }
-      for(int i = 0; i < unterstring.length(); i++){
-        lcd.setCursor(0, 1);
-        lcd.print(unterstring.substring(0,i+1));
-        delay(200);
-        alarmDetection();
-      }
-      lcd.setCursor(0,0);
-      for(int i = 0; i < 4; i++){
-        enteredCode[i] = -1;
-      }
-      if(numberMistakes == 3){
+      lcd.setCursor(0, 0);
+      lcd.print("Unauthorized Ac-");
+      lcd.setCursor(0, 1);
+      lcd.print("cess Detected");
+
+      if(numberMistakes >= 3){
         NGU();
         numberMistakes = 0;
       }
+      Serial.print("Waiting start");
       
-      for(int i = 0; i<10;i++){
-        delay(400);
-        alarmDetection();
+      for(int i = 0; i<20;i++){
+        // TODO change block
+        checkAlarm();
+        delay(200);
       }
+      Serial.print("Waiting stop");
 
-      currentCodeSize = 0;
-      lcd.clear();
-      lcd.setCursor(0,0);
-      lcd.print("Enter Code!");
+      resetCode();
     }
-  correctPin = false;
-  }
 }
+
 
 bool compareCharArrays(char* enteredCode, char* validCode){
     for (int i = 0; i < 4; i++) {
@@ -348,21 +369,36 @@ void NGU(){
   playNote(TONE_DST, 2105);  // Die
 }
 
-void alarmDetection(){
-  digitalWrite(PIN_TRIGGER, LOW);
-  delayMicroseconds(2);
+unsigned long lastCheckTime = 0;  // Variable to store the last time checkAlarm was called
+const unsigned long checkInterval = 2500;  // Interval in milliseconds (5000 ms = 5 seconds)
 
-  digitalWrite(PIN_TRIGGER, HIGH);
-  delayMicroseconds(10);
-
-  duration = pulseIn(PIN_ECHO, HIGH);
-  distance = duration/58;
-
-  if (distance > SENSOR_MAX_RANGE || distance <= 6){
-  } else {
-    Serial.print("Too far away : ");
-    Serial.println(distance);
-    playNote(TONE_FST, 789);
+void checkAlarm() {
+  if (millis() - lastCheckTime >= checkInterval) {  // Check if 5 seconds have passed
+    lastCheckTime = millis();  // Update the last check time
+    alarm();
+    
   }
 }
+
+void alarm(){
+  if (isAlarmActivated) {
+      digitalWrite(PIN_TRIGGER, LOW);
+      delayMicroseconds(2);
+
+      digitalWrite(PIN_TRIGGER, HIGH);
+      delayMicroseconds(10);
+
+      duration = pulseIn(PIN_ECHO, HIGH);
+      distance = duration / 58;
+
+      if (distance < SENSOR_MAX_RANGE && distance > alarmTriggerThreshold) {
+        Serial.print("Too far away : ");
+        Serial.println(distance);
+        playNote(TONE_FST, 789);
+        alarm();
+      }
+    }
+}
+
+
 
