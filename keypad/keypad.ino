@@ -115,7 +115,7 @@ void setup() {
 
 void loop() {
 
- alarmDetection();
+ 
 
 
 
@@ -358,8 +358,10 @@ void alarmDetection(){
   duration = pulseIn(PIN_ECHO, HIGH);
   distance = duration/58;
 
-  if (distance > SENSOR_MAX_RANGE || distance <= 0){
+  if (distance > SENSOR_MAX_RANGE || distance <= 6){
   } else {
+    Serial.print("Too far away : ");
+    Serial.println(distance);
     playNote(TONE_FST, 789);
   }
 }
